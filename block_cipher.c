@@ -23,26 +23,26 @@ void get_words(FILE* fd, char* bl){
    temp1[0] = bl[0]; temp1[1] = bl[1]; temp1[2] = bl[2]; temp1[3] = bl[3];
    sscanf(temp1, "%X", &temp2);
    w1 = (uint16_t) temp2;      
-   printf("%hx\n", w1);
-   printf("%hu\n", (uint16_t) w1);
+   //printf("%hx\n", w1);
+   //printf("%hu\n", (uint16_t) w1);
     
    temp1[0] = bl[4]; temp1[1] = bl[5]; temp1[2] = bl[6]; temp1[3] = bl[7];
    sscanf(temp1, "%X", &temp2);
    w2 = (uint16_t) temp2;
-   printf("%hx\n", w2);      
-   printf("%hu\n", (uint16_t) w2);
+   //printf("%hx\n", w2);      
+   //printf("%hu\n", (uint16_t) w2);
 
    temp1[0] = bl[8]; temp1[1] = bl[9]; temp1[2] = bl[10]; temp1[3] = bl[11];
    sscanf(temp1, "%X", &temp2);
    w3 = (uint16_t) temp2;
-   printf("%hx\n", w3);
-   printf("%hu\n", (uint16_t) w3);
+   //printf("%hx\n", w3);
+   //printf("%hu\n", (uint16_t) w3);
 
    temp1[0] = bl[12]; temp1[1] = bl[13]; temp1[2] = bl[14]; temp1[3] = bl[15];
    sscanf(temp1, "%X", &temp2);
    w4 = (uint16_t) temp2;
-   printf("%hx\n", w4);
-   printf("%hu\n", (uint16_t) w4);
+   //printf("%hx\n", w4);
+   //printf("%hu\n", (uint16_t) w4);
 
 }
 
@@ -85,9 +85,9 @@ int main(void){
       fclose(fd);
       exit(1);
    }
-   sscanf(block, "%" SCNx64, &key); //XXX need to figure out how to do this
-   
-
+   sscanf(block, "%" SCNx64, &key);
+   //printf("Key in hex is: %llx\n", (long long unsigned int) key);
+   //printf("%llu\n", (long long unsigned int) key);
       
    while ((result = fread(block, 1, 16, fd)) == 16){             
           
