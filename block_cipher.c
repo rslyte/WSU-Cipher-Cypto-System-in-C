@@ -120,6 +120,7 @@ uint64_t keyrotr(uint64_t value, int shift) {
     return (value >> shift) | (value << (sizeof(value) * CHAR_BIT - shift));
 }
 
+//Gets 1st, 2nd, etc 16 bits from key. Tested and Working
 void tease_key(){
    K0 = (key & 0x000000000000FFFF);
    K1 = (key & 0x00000000FFFF0000) >> 16;
@@ -171,7 +172,7 @@ int main(void){
 
       //Encryption Loop
       while (round < 16){
-
+      
 
       }    
                   
