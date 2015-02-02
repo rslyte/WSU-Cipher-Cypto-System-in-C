@@ -7,8 +7,10 @@
 #include <inttypes.h>
 
 /*Globals I'll need*/
+int row = 0, col = 0; //row=16, col=12, indexes of subkey matrix
+uint8_t subkeys[16][12]; //This will hold on all 192 subkeys.
 uint8_t key_chain[8] = {0, 0, 0, 0, 0, 0, 0, 0}; //will hold 8 bytes of key
-uint16_t w1, w2, w3, w4, f0, f1; //these are global because their functions-
+uint16_t w0, w1, w2, w3, f0, f1, K0, K1, K2, K3; //these are global because their functions-
 uint64_t key;                    //return multiple values at a time
 
 void add_keys();
@@ -18,6 +20,7 @@ uint16_t rotl(uint16_t, int);
 uint16_t rotr(uint16_t, int);
 uint64_t keyrotl(uint64_t, int);
 uint64_t keyrotr(uint64_t, int);
+void tease_key();
 
 //Subroutine to go through and add subkeys of 'key' to keychain.
 //Note: will have to change in decr is different than enc
@@ -42,11 +45,21 @@ uint8_t K(int x, int flag){
       key = keyrotl(key, 1);
       add_keys();
       idx = x % 8;
+      subkeys[row][col++] = key_chain[idx]; //add to global subkeys[][]
+      if (col == 16){
+         col = 0; //wrap mat col back to 0
+         row++; //inc rown up 1
+      }
       return key_chain[idx];      
    }
    else {
       idx = x % 8;
       uint8_t ret = key_chain[idx];
+      subkeys[row][col++] = ret; //add to global subkeys[][]
+      if (col == 16){
+         col = 0; //wrap mat col back to 0
+         row--; //dec row down 1
+      }
       key = keyrotr(key, 1);
       add_keys();
       return ret;
@@ -65,25 +78,25 @@ void get_words(FILE* fd, char* bl){
 
    temp1[0] = bl[0]; temp1[1] = bl[1]; temp1[2] = bl[2]; temp1[3] = bl[3];
    sscanf(temp1, "%X", &temp2);
-   w1 = (uint16_t) temp2;      
+   w0 = (uint16_t) temp2;      
    //printf("%hx\n", w1);
    //printf("%hu\n", (uint16_t) w1);
     
    temp1[0] = bl[4]; temp1[1] = bl[5]; temp1[2] = bl[6]; temp1[3] = bl[7];
    sscanf(temp1, "%X", &temp2);
-   w2 = (uint16_t) temp2;
+   w1 = (uint16_t) temp2;
    //printf("%hx\n", w2);      
    //printf("%hu\n", (uint16_t) w2);
 
    temp1[0] = bl[8]; temp1[1] = bl[9]; temp1[2] = bl[10]; temp1[3] = bl[11];
    sscanf(temp1, "%X", &temp2);
-   w3 = (uint16_t) temp2;
+   w2 = (uint16_t) temp2;
    //printf("%hx\n", w3);
    //printf("%hu\n", (uint16_t) w3);
 
    temp1[0] = bl[12]; temp1[1] = bl[13]; temp1[2] = bl[14]; temp1[3] = bl[15];
    sscanf(temp1, "%X", &temp2);
-   w4 = (uint16_t) temp2;
+   w3 = (uint16_t) temp2;
    //printf("%hx\n", w4);
    //printf("%hu\n", (uint16_t) w4);
 
@@ -105,6 +118,14 @@ uint64_t keyrotl(uint64_t value, int shift) {
 }
 uint64_t keyrotr(uint64_t value, int shift) {
     return (value >> shift) | (value << (sizeof(value) * CHAR_BIT - shift));
+}
+
+void tease_key(){
+   K0 = (key & 0x000000000000FFFF);
+   K1 = (key & 0x00000000FFFF0000) >> 16;
+   K2 = (key & 0x0000FFFF00000000) >> 32;
+   K3 = (key & 0xFFFF000000000000) >> 56;
+   return;
 }
 
 int main(void){
@@ -131,10 +152,28 @@ int main(void){
    sscanf(block, "%" SCNx64, &key);
    //printf("Key in hex is: %llx\n", (long long unsigned int) key);
    //printf("%llu\n", (long long unsigned int) key);
+
+   uint16_t R0, R1, R2, R3; //encrypting values that will be saved per round
+   int round = 0; //there will be 16 rounds here
       
    while ((result = fread(block, 1, 16, fd)) == 16){             
+
           
-      get_words(fd, block);    
+      get_words(fd, block);
+
+      //Whitening Step
+      tease_key();
+
+      R0 = w0^K0; //XOR wi with Ki
+      R1 = w1^K1;
+      R2 = w2^K2;
+      R3 = w3^K3;
+
+      //Encryption Loop
+      while (round < 16){
+
+
+      }    
                   
    }
     
