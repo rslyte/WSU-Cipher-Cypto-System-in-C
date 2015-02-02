@@ -7,9 +7,52 @@
 #include <inttypes.h>
 
 /*Globals I'll need*/
-//4 quarters of 64 bit block
-uint16_t w1, w2, w3, w4;
-uint64_t key;
+uint8_t key_chain[8] = {0, 0, 0, 0, 0, 0, 0, 0}; //will hold 8 bytes of key
+uint16_t w1, w2, w3, w4, f0, f1; //these are global because their functions-
+uint64_t key;                    //return multiple values at a time
+
+void add_keys();
+uint8_t K(int, int);
+void get_words(FILE*, char*);
+uint16_t rotl(uint16_t, int);
+uint16_t rotr(uint16_t, int);
+uint64_t keyrotl(uint64_t, int);
+uint64_t keyrotr(uint64_t, int);
+
+//Subroutine to go through and add subkeys of 'key' to keychain.
+//Note: will have to change in decr is different than enc
+void add_keys(){
+   key_chain[7] = (key & 0xFF00000000000000) >> 56;
+   key_chain[6] = (key & 0x00FF000000000000) >> 48;
+   key_chain[5] = (key & 0x0000FF0000000000) >> 40;
+   key_chain[4] = (key & 0x000000FF00000000) >> 32;
+   key_chain[3] = (key & 0x00000000FF000000) >> 24;
+   key_chain[2] = (key & 0x0000000000FF0000) >> 16;
+   key_chain[1] = (key & 0x000000000000FF00) >> 8;
+   key_chain[0] = (key & 0x00000000000000FF);    
+   return;
+}
+
+/*Key function works for both encryption (input 1 for 3rd arg) and
+  decryption (input 0 for 3rd arg)
+*/
+uint8_t K(int x, int flag){
+   int idx;
+   if (flag){
+      key = keyrotl(key, 1);
+      add_keys();
+      idx = x % 8;
+      return key_chain[idx];      
+   }
+   else {
+      idx = x % 8;
+      uint8_t ret = key_chain[idx];
+      key = keyrotr(key, 1);
+      add_keys();
+      return ret;
+   }
+}  
+
 
 /*
   This function is just designed read the 16 hex character string
