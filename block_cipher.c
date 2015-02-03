@@ -31,7 +31,6 @@ uint8_t subkeys[16][12]; //This will hold on all 192 subkeys.
 uint8_t key_chain[8] = {0, 0, 0, 0, 0, 0, 0, 0}; //will hold 8 bytes of key
 uint16_t w0, w1, w2, w3, f0, f1, K0, K1, K2, K3; //these are global because their functions-
 uint64_t key;                    //return multiple values at a time
-unsigned int mod_val = exp2(16); //XXX not sure this is correct
 int dec_flag = 1; //for K() using enc or dec
 
 /*Function Prototypes*/
@@ -179,7 +178,6 @@ uint16_t G(uint16_t w, int rd){
    g4 = get_idx(g3^K(4*rd+1))^g2;
    g5 = get_idx(g4^K(4*rd+2))^g3;
    g6 = get_idx(g5^K(4*rd+3))^g4;
-
    return concat_bytes(g5, g6);   
 }
 
@@ -187,12 +185,12 @@ uint16_t G(uint16_t w, int rd){
 /*F function from homework prompt to return f0 and f1 during
   each round*/
 void F(uint16_t r0, uint16_t r1, int rd){
+   unsigned int mod_val = exp2(16);
    uint16_t t0, t1;
    t0 = G(r0, rd);
    t1 = G(r1, rd);
    f0 = (t0+2*t1+concat_bytes(K(4*rd),K(4*rd+1))) % mod_val;
    f1 = (2*t0+t1+concat_bytes(K(4*rd+2),K(4*rd+3))) % mod_val;      
-
    return;
 }
 
@@ -227,7 +225,6 @@ int main(void){
    int round = 0; //there will be 16 rounds here
       
    while ((result = fread(block, 1, 16, fd)) == 16){             
-
           
       get_words(fd, block);
 
@@ -238,15 +235,32 @@ int main(void){
       R1 = w1^K1;
       R2 = w2^K2;
       R3 = w3^K3;
+      //yi's are temps, ci's are the resulting cipher words, tempi are temps
+      uint16_t y0, y1, y2, y3, c0, c1, c2, c3, temp1, temp2;      
 
       //Encryption Loop
       while (round < 16){
-      //TODO
 
-
-      round++;
-      }    
+      F(R0, R1, round);
+      temp1 = R2^f0; //->R0
+      temp2 = R1; //->R3
+      R1 = rotl(R3, 1)^f1;
+      R2 = R0;
+      R3 = temp2;
+      R0 = temp1;
                   
+      round++;
+      } //done with encryption round processing
+      tease_key(); //get individual 16 bit parts of newest key
+      y0 = R2; y1 = R3; y2 = R0; y3 = R1;
+      c0 = y0^K0;
+      c1 = y1^K1;
+      c2 = y2^K2;
+      c3 = y3^K3;
+      //ENCRYPTION DONE
+
+
+                      
    }
     
    fclose(fd);//plaintext
