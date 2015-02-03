@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <limits.h>
 #include <inttypes.h>
+#include <math.h>
 
 /*Globals I'll need*/
 //SkipJack table given in the assignment prompt
@@ -30,10 +31,12 @@ uint8_t subkeys[16][12]; //This will hold on all 192 subkeys.
 uint8_t key_chain[8] = {0, 0, 0, 0, 0, 0, 0, 0}; //will hold 8 bytes of key
 uint16_t w0, w1, w2, w3, f0, f1, K0, K1, K2, K3; //these are global because their functions-
 uint64_t key;                    //return multiple values at a time
+unsigned int mod_val = exp2(16); //XXX not sure this is correct
+int dec_flag = 1; //for K() using enc or dec
 
 /*Function Prototypes*/
 void add_keys();
-uint8_t K(int, int);
+uint8_t K(int);
 void get_words(FILE*, char*);
 uint16_t rotl(uint16_t, int);
 uint16_t rotr(uint16_t, int);
@@ -43,8 +46,7 @@ void tease_key();
 uint16_t concat_bytes(uint8_t, uint8_t);
 void F(uint16_t, uint16_t, int);
 uint8_t get_idx(uint8_t);
-
-
+uint16_t G(uint16_t, int);
 
 //Subroutine to go through and add subkeys of 'key' to keychain.
 //Note: will have to change in decr is different than enc
@@ -63,9 +65,9 @@ void add_keys(){
 /*Key function works for both encryption (input 1 for 3rd arg) and
   decryption (input 0 for 3rd arg)
 */
-uint8_t K(int x, int flag){
+uint8_t K(int x){
    int idx;
-   if (flag){
+   if (dec_flag){
       key = keyrotl(key, 1);
       add_keys();
       idx = x % 8;
@@ -152,13 +154,14 @@ void tease_key(){
    return;
 }
 
-//Subtroutine to concatenate two 8 bit unsigned ints into
-//a 16 bit unsigned int
+/*Subtroutine to concatenate two 8 bit unsigned ints into
+  a 16 bit unsigned int*/
 uint16_t concat_bytes(uint8_t a, uint8_t b){
    return ((uint16_t) a << 8) | b;
 }
 
-//Subroutine to access value of global skpjack table
+/*Subroutine to access value of global skpjack table.
+  (This is Ftable() from homework prompt)*/
 uint8_t get_idx(uint8_t val){
    uint8_t row = (val & 0xF0) >> 4;
    uint8_t col = (val & 0x0F);
@@ -166,10 +169,29 @@ uint8_t get_idx(uint8_t val){
    return ret;
 }
 
+/*G function from homework prompt, takes 16u bit and round
+  and outputs a 16u bit concantenation of two bytes*/
+uint16_t G(uint16_t w, int rd){
+   uint8_t g1, g2, g3, g4, g5, g6;
+   g1 = (w & 0xF0) >> 4;
+   g2 = (w & 0x0F);
+   g3 = get_idx(g2^K(4*rd))^g1;
+   g4 = get_idx(g3^K(4*rd+1))^g2;
+   g5 = get_idx(g4^K(4*rd+2))^g3;
+   g6 = get_idx(g5^K(4*rd+3))^g4;
+
+   return concat_bytes(g5, g6);   
+}
+
+
 /*F function from homework prompt to return f0 and f1 during
   each round*/
 void F(uint16_t r0, uint16_t r1, int rd){
-     
+   uint16_t t0, t1;
+   t0 = G(r0, rd);
+   t1 = G(r1, rd);
+   f0 = (t0+2*t1+concat_bytes(K(4*rd),K(4*rd+1))) % mod_val;
+   f1 = (2*t0+t1+concat_bytes(K(4*rd+2),K(4*rd+3))) % mod_val;      
 
    return;
 }
@@ -219,7 +241,7 @@ int main(void){
 
       //Encryption Loop
       while (round < 16){
-      
+      //TODO
 
 
       round++;
