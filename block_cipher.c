@@ -284,7 +284,7 @@ int main(void){
       while (round < 16){
 
          F(R0, R1, round);
-         temp1 = R2^f0; //->R0
+         temp1 = rotr(R2^f0, 1); //->R0
          temp2 = R1; //->R3
          R1 = rotl(R3, 1)^f1;
          R2 = R0;
@@ -292,7 +292,7 @@ int main(void){
          R0 = temp1;
 
       printf("After round %i: ", round);
-      //print_block(R0,R1,R2,R3);
+      print_block(R0,R1,R2,R3);
                   
       round++;
       } //done with encryption round processing
