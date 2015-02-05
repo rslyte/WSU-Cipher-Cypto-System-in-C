@@ -176,8 +176,8 @@ uint8_t get_idx(uint8_t val){
   and outputs a 16u bit concantenation of two bytes*/
 uint16_t G(uint16_t w, uint8_t k1, uint8_t k2, uint8_t k3, uint8_t k4){
    uint8_t g1, g2, g3, g4, g5, g6;
-   g1 = (w & 0xF0) >> 4;
-   g2 = (w & 0x0F);
+   g1 = (w & 0xFF00) >> 8; //DEBUG
+   g2 = (w & 0x00FF);
    g3 = get_idx(g2^k1)^g1;
    g4 = get_idx(g3^k2)^g2;
    g5 = get_idx(g4^k3)^g3;
@@ -211,7 +211,9 @@ void F(uint16_t r0, uint16_t r1, int rnd){
    t0 = G(r0, gk1, gk2, gk3, gk4);
    t1 = G(r1, gk5, gk6, gk7, gk8);
    f0 = (t0+2*t1+concat_bytes(k9,k10)) % mod_val;
-   f1 = (2*t0+t1+concat_bytes(k11,k12)) % mod_val;      
+   f1 = (2*t0+t1+concat_bytes(k11,k12)) % mod_val;
+   printf("In, F, round %i: t0:%hx, t1:%hx, f0:%hx, f1:%hx\n", rnd, t0, t1, f0, f1); 
+      
    return;
 }
 
@@ -288,6 +290,9 @@ int main(void){
          R2 = R0;
          R3 = temp2;
          R0 = temp1;
+
+      printf("After round %i: ", round);
+      //print_block(R0,R1,R2,R3);
                   
       round++;
       } //done with encryption round processing
