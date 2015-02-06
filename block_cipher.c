@@ -106,25 +106,25 @@ void get_words(FILE* fd, char* bl){
    temp1[0] = bl[0]; temp1[1] = bl[1]; temp1[2] = bl[2]; temp1[3] = bl[3];
    sscanf(temp1, "%X", &temp2);
    w0 = (uint16_t) temp2;      
-   printf("word 1 of pt: %hx\n", w0);
+   //printf("word 1 of pt: %hx\n", w0);
    //printf("%hu\n", (uint16_t) w1);
     
    temp1[0] = bl[4]; temp1[1] = bl[5]; temp1[2] = bl[6]; temp1[3] = bl[7];
    sscanf(temp1, "%X", &temp2);
    w1 = (uint16_t) temp2;
-   printf("word 2 of pt: %hx\n", w1);      
+   //printf("word 2 of pt: %hx\n", w1);      
    //printf("%hu\n", (uint16_t) w2);
 
    temp1[0] = bl[8]; temp1[1] = bl[9]; temp1[2] = bl[10]; temp1[3] = bl[11];
    sscanf(temp1, "%X", &temp2);
    w2 = (uint16_t) temp2;
-   printf("word 3 of pt: %hx\n", w2);
+   //printf("word 3 of pt: %hx\n", w2);
    //printf("%hu\n", (uint16_t) w3);
 
    temp1[0] = bl[12]; temp1[1] = bl[13]; temp1[2] = bl[14]; temp1[3] = bl[15];
    sscanf(temp1, "%X", &temp2);
    w3 = (uint16_t) temp2;
-   printf("word 4 of pt: %hx\n", w3);
+   //printf("word 4 of pt: %hx\n", w3);
    //printf("%hu\n", (uint16_t) w4);
 
 }
@@ -212,7 +212,7 @@ void F(uint16_t r0, uint16_t r1, int rnd){
    t1 = G(r1, gk5, gk6, gk7, gk8);
    f0 = (t0+2*t1+concat_bytes(k9,k10)) % mod_val;
    f1 = (2*t0+t1+concat_bytes(k11,k12)) % mod_val;
-   printf("In, F, round %i: t0:%hx, t1:%hx, f0:%hx, f1:%hx\n", rnd, t0, t1, f0, f1); 
+   //printf("In, F, round %i: t0:%hx, t1:%hx, f0:%hx, f1:%hx\n", rnd, t0, t1, f0, f1); 
       
    return;
 }
@@ -233,15 +233,16 @@ void print_keys(){
    return;
 }
 
-int main(void){
+int main(int argc, char* argv[]){
   
    FILE *fd = NULL, *kd = NULL; 
    size_t result;
-   char block[16];
-     
-   if ((fd = fopen("plaintext.txt", "r")) == NULL){
-      printf("Plaintext file open failed. Exit\n");
-      exit(1); 
+   char block[16], key_block[16];
+   char** current = argv; //points to files to open
+
+   if (argc == 1){
+     printf("No args given. Usage: ./block_cipher [file1.txt] [fileN.txt]...\n");
+     exit(-1);
    }
 
    if ((kd = fopen("key.txt", "r")) == NULL){
@@ -249,70 +250,85 @@ int main(void){
       exit(1); 
    }
 
-   if((result = fread(block, 1, 16, kd)) != 16){
-      printf("Key file not formatted properly. Exit\n");
-      fclose(fd);
-      exit(1);
-   }
+   current++;
 
-   sscanf(block, "%" SCNx64, &key);
-   printf("Key in hex is: %lx\n", (long unsigned int) key);
-   //printf("%llu\n", (long long unsigned int) key);
+   while (*current){
 
-   uint16_t R0, R1, R2, R3; //encrypting values that will be saved per round
-         
-   while ((result = fread(block, 1, 16, fd)) == 16){             
-          
-      get_words(fd, block);
-
-      //Whitening Step
-      tease_key();
-      printf("Key pieces are: ");
-      print_block(K0, K1, K2, K3); 
+      char* file = *current;
+      if ((fd = fopen(file, "r")) == NULL){
+         printf("A file-open failed. Program Exit\n");
+         exit(1); 
+      }
       
-      R0 = w0^K0; //XOR wi with Ki
-      R1 = w1^K1;
-      R2 = w2^K2;
-      R3 = w3^K3;
+      //printf("Key in hex is: %lx\n", (long unsigned int) key);
+      
 
-      printf("After whitening step: ");
-      print_block(R0, R1, R2, R3);
-      //yi's are temps, ci's are the resulting cipher words, tempi are temps
-      uint16_t y0, y1, y2, y3, c0, c1, c2, c3, temp1, temp2;      
-      //Encryption Loop
-      int round = 0;
-      while (round < 16){
+      uint16_t R0, R1, R2, R3; //encrypting values that will be saved per round
+         
+      while (1){
 
-         F(R0, R1, round);
-         temp1 = rotr(R2^f0, 1); //->R0
-         temp2 = R1; //->R3
-         R1 = rotl(R3, 1)^f1;
-         R2 = R0;
-         R3 = temp2;
-         R0 = temp1;
+	 if((result = fread(block, 1, 16, fd)) != 16)break;
+	            
+         if((result = fread(key_block, 1, 16, kd)) != 16){
+            printf("Key file must have 64-bit key for every plaintext block. Exit\n");
+            fclose(fd);
+            fclose(kd);
+            exit(1);
+         }
+         sscanf(key_block, "%" SCNx64, &key);
 
-      printf("After round %i: ", round);
-      print_block(R0,R1,R2,R3);
+         get_words(fd, block);
+
+         //Whitening Step
+         tease_key();
+         printf("Key pieces are: ");
+         print_block(K0, K1, K2, K3); 
+      
+         R0 = w0^K0; //XOR wi with Ki
+         R1 = w1^K1;
+         R2 = w2^K2;
+         R3 = w3^K3;
+
+         printf("After whitening step: ");
+         print_block(R0, R1, R2, R3);
+         //yi's are temps, ci's are the resulting cipher words, tempi are temps
+         uint16_t y0, y1, y2, y3, c0, c1, c2, c3, temp1, temp2;      
+         //Encryption Loop
+         int round = 0;
+         while (round < 16){
+
+            F(R0, R1, round);
+            temp1 = rotr(R2^f0, 1); //->R0
+            temp2 = R1; //->R3
+            R1 = rotl(R3, 1)^f1;
+            R2 = R0;
+            R3 = temp2;
+            R0 = temp1;
+
+            //printf("After round %i: ", round);
+            //print_block(R0,R1,R2,R3);
                   
-      round++;
-      } //done with encryption round processing
-
-      printf("Key after 16 rounds is: %lx\n", key);
-      tease_key(); //get individual 16 bit parts of newest key
-      y0 = R2; y1 = R3; y2 = R0; y3 = R1;
-      c0 = y0^K0;
-      c1 = y1^K1;
-      c2 = y2^K2;
-      c3 = y3^K3;
-      //ENCRYPTION DONE
-      print_keys();
-      printf("Encrypted block: "); 
-      print_block(c0,c1,c2,c3);
-
+            round++;
+         } //done with encryption round processing
+         round = 0; //reset the round
+      
+         //printf("Key after 16 rounds is: %lx\n", key);
+         tease_key(); //get individual 16 bit parts of newest key
+         y0 = R2; y1 = R3; y2 = R0; y3 = R1;
+         c0 = y0^K0;
+         c1 = y1^K1;
+         c2 = y2^K2;
+         c3 = y3^K3;
+         //ENCRYPTION DONE
+         print_keys();
+         printf("Encrypted block: "); 
+         print_block(c0,c1,c2,c3);
                       
-   }
+      }
     
-   fclose(fd);//plaintext
+      fclose(fd);//plaintext
+      current++;
+   } //end of main while loop for file reading
    fclose(kd);//keytext
    
    return 0;
