@@ -218,7 +218,7 @@ void F(uint16_t r0, uint16_t r1, int rnd){
 }
 
 void print_block(uint16_t a, uint16_t b, uint16_t c, uint16_t d){
-   printf("%hx %hx %hx %hx\n", a,b,c,d);
+   fprintf(stdout, "%hx %hx %hx %hx\n", a,b,c,d);
 }
 
 //test function to make sure I'm print all the keys correctly
@@ -241,22 +241,33 @@ int main(int argc, char* argv[]){
    char** current = argv; //points to files to open
 
    if (argc == 1){
-     printf("No args given. Usage: ./block_cipher [file1.txt] [fileN.txt]...\n");
-     exit(-1);
+      fprintf(stderr,"No args given. Usage: ./block_cipher 1/0 [file1.txt] [fileN.txt]...\nMust have at least one file specified, 1 for encrypt, 0 for decrypt.\n");
+     exit(1);
    }
+
+   //TODO MAKE SURE THESE ARE NULL TERMINATED ************************************************************
+   //SEG FAULT AFTER DEALING WITH THIS CODE
+   int test;
+   sscanf(argv[1], "%d", &test); 
+   if ((test != 1) && (test != 0)){
+      fprintf(stderr, "First arugment must be a 1 or 0, 1 for encryptin and 0 for decryption\n");
+   }
+   if (test == 0){
+     fprintf(stdout, "Decryption Mode.\n");
+   }else{fprintf(stdout, "Encryption Mode.\n");}
+
+   current+=2; //move onto the text files
 
    if ((kd = fopen("key.txt", "r")) == NULL){
-      printf("Key file open failed. Exit\n");
+      fprintf(stderr,"Key file open failed. Exit\n");
       exit(1); 
    }
-
-   current++;
 
    while (*current){
 
       char* file = *current;
       if ((fd = fopen(file, "r")) == NULL){
-         printf("A file-open failed. Program Exit\n");
+	 fprintf(stderr,"A file-open failed. Program Exit\n");
          exit(1); 
       }
       
@@ -270,7 +281,7 @@ int main(int argc, char* argv[]){
 	 if((result = fread(block, 1, 16, fd)) != 16)break;
 	            
          if((result = fread(key_block, 1, 16, kd)) != 16){
-            printf("Key file must have 64-bit key for every plaintext block. Exit\n");
+	    fprintf(stderr,"Key file must have 64-bit key for every plaintext block. Exit\n");
             fclose(fd);
             fclose(kd);
             exit(1);
@@ -281,16 +292,16 @@ int main(int argc, char* argv[]){
 
          //Whitening Step
          tease_key();
-         printf("Key pieces are: ");
-         print_block(K0, K1, K2, K3); 
+         //printf("Key pieces are: ");
+         //print_block(K0, K1, K2, K3); 
       
          R0 = w0^K0; //XOR wi with Ki
          R1 = w1^K1;
          R2 = w2^K2;
          R3 = w3^K3;
 
-         printf("After whitening step: ");
-         print_block(R0, R1, R2, R3);
+         //printf("After whitening step: ");
+         //print_block(R0, R1, R2, R3);
          //yi's are temps, ci's are the resulting cipher words, tempi are temps
          uint16_t y0, y1, y2, y3, c0, c1, c2, c3, temp1, temp2;      
          //Encryption Loop
@@ -320,8 +331,8 @@ int main(int argc, char* argv[]){
          c2 = y2^K2;
          c3 = y3^K3;
          //ENCRYPTION DONE
-         print_keys();
-         printf("Encrypted block: "); 
+         //print_keys();
+         fprintf(stdout, "Encrypted block: "); 
          print_block(c0,c1,c2,c3);
                       
       }
