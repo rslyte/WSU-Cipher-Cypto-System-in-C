@@ -237,7 +237,7 @@ int main(int argc, char* argv[]){
   
    FILE *fd = NULL, *kd = NULL; 
    size_t result;
-   char block[16], key_block[16];
+   char block[16];
    char** current = argv; //points to files to open
 
    if (argc == 1){
@@ -245,16 +245,13 @@ int main(int argc, char* argv[]){
      exit(1);
    }
 
-   //TODO MAKE SURE THESE ARE NULL TERMINATED ************************************************************
-   //SEG FAULT AFTER DEALING WITH THIS CODE
+
    int test;
    sscanf(argv[1], "%d", &test); 
    if ((test != 1) && (test != 0)){
       fprintf(stderr, "First arugment must be a 1 or 0, 1 for encryptin and 0 for decryption\n");
    }
-   if (test == 0){
-     fprintf(stdout, "Decryption Mode.\n");
-   }else{fprintf(stdout, "Encryption Mode.\n");}
+   if (test == 0)dec_flag--; //dec flag set to DECRYPTION
 
    current+=2; //move onto the text files
 
@@ -262,6 +259,12 @@ int main(int argc, char* argv[]){
       fprintf(stderr,"Key file open failed. Exit\n");
       exit(1); 
    }
+
+   if((result = fread(block, 1, 16, kd)) != 16){
+      fprintf(stderr,"Key file must be 64 bit hext number represented by 16 character bytes.Program exit\n");
+      exit(1);
+   }
+   sscanf(block, "%" SCNx64, &key);
 
    while (*current){
 
@@ -280,14 +283,6 @@ int main(int argc, char* argv[]){
 
 	 if((result = fread(block, 1, 16, fd)) != 16)break;
 	            
-         if((result = fread(key_block, 1, 16, kd)) != 16){
-	    fprintf(stderr,"Key file must have 64-bit key for every plaintext block. Exit\n");
-            fclose(fd);
-            fclose(kd);
-            exit(1);
-         }
-         sscanf(key_block, "%" SCNx64, &key);
-
          get_words(fd, block);
 
          //Whitening Step
@@ -331,8 +326,7 @@ int main(int argc, char* argv[]){
          c2 = y2^K2;
          c3 = y3^K3;
          //ENCRYPTION DONE
-         //print_keys();
-         fprintf(stdout, "Encrypted block: "); 
+         //print_keys();          
          print_block(c0,c1,c2,c3);
                       
       }
