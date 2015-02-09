@@ -50,6 +50,7 @@ uint16_t G(uint16_t,uint8_t,uint8_t,uint8_t,uint8_t);
 void print_keys(); //test function to print all the generated subkeys
 void print_block(uint16_t,uint16_t,uint16_t,uint16_t);
 void pad_get_words(char*);
+void generate_keys();
 
 //Subroutine to go through and add subkeys of 'key' to keychain.
 //Note: will have to change in decr is different than enc
@@ -65,12 +66,32 @@ void add_keys(){
    return;
 }
 
+void generate_keys(){
+
+   for(int i = 0; i < 16; i++){
+      K(4*i);
+      K(4*i+1);
+      K(4*i+2);
+      K(4*i+3);
+      K(4*i);
+      K(4*i+1);
+      K(4*i+2);
+      K(4*i+3);
+      K(4*i);
+      K(4*i+1);
+      K(4*i+2);
+      K(4*i+3);
+   }
+   print_keys();
+   return;
+}
+
 /*Key function works for both encryption (input 1 for 3rd arg) and
   decryption (input 0 for 3rd arg)
 */
 uint8_t K(int x){
    int idx;
-   if (dec_flag){
+   //if (dec_flag){
       key = keyrotl(key, 1);
       add_keys();
       idx = x % 8;
@@ -80,8 +101,8 @@ uint8_t K(int x){
          row++; //inc rown up 1
       }
       return key_chain[idx];      
-   }
-   else {
+   //}
+   /*else {
       idx = x % 8;
       add_keys(); //deal with SEG for decryption
       uint8_t ret = key_chain[idx];
@@ -92,7 +113,7 @@ uint8_t K(int x){
       }
       key = keyrotr(key, 1);
       return ret;
-   }
+   }*/
 }  
 
 /*
@@ -184,46 +205,20 @@ uint16_t G(uint16_t w, uint8_t k1, uint8_t k2, uint8_t k3, uint8_t k4){
 void F(uint16_t r0, uint16_t r1, int rnd){
    unsigned int mod_val = exp2(16);
    uint16_t t0, t1;
-
-   uint8_t gk1, gk2, gk3, gk4, gk5, gk6, gk7, gk8, k9, k10, k11, k12;
-   if (!dec_flag){
-
-      gk1 = K(4*rnd+3);
-      gk2 = K(4*rnd+2);
-      gk3 = K(4*rnd+1);
-      gk4 = K(4*rnd);
-      gk5 = K(4*rnd+3);
-      gk6 = K(4*rnd+2);
-      gk7 = K(4*rnd+1);
-      gk8 = K(4*rnd);
-      k9 = K(4*rnd+3);
-      k10 = K(4*rnd+2);
-      k11 = K(4*rnd+1);
-      k12 = K(4*rnd);
-      t0 = G(r0, gk1, gk2, gk3, gk4);
-      t1 = G(r1, gk5, gk6, gk7, gk8);
-      f0 = (t0+2*t1+concat_bytes(k9,k10)) % mod_val;
-      f1 = (2*t0+t1+concat_bytes(k11,k12)) % mod_val;
-
-   }else{
-
-      gk1 = K(4*rnd);
-      gk2 = K(4*rnd+1);
-      gk3 = K(4*rnd+2);
-      gk4 = K(4*rnd+3);
-      gk5 = K(4*rnd);
-      gk6 = K(4*rnd+1);
-      gk7 = K(4*rnd+2);
-      gk8 = K(4*rnd+3);
-      k9 = K(4*rnd);
-      k10 = K(4*rnd+1);
-      k11 = K(4*rnd+2);
-      k12 = K(4*rnd+3);
-      t0 = G(r0, gk1, gk2, gk3, gk4);
-      t1 = G(r1, gk5, gk6, gk7, gk8);
-      f0 = (t0+2*t1+concat_bytes(k9,k10)) % mod_val;
-      f1 = (2*t0+t1+concat_bytes(k11,k12)) % mod_val;
+   int dec_rnd = 15-rnd; //so decrypt starts in row 15 and works down
+   //ENCRYPTION
+   if (dec_flag){
+      t0 = G(r0, subkeys[rnd][0], subkeys[rnd][1], subkeys[rnd][2], subkeys[rnd][3]);
+      t1 = G(r1, subkeys[rnd][4], subkeys[rnd][5], subkeys[rnd][6], subkeys[rnd][7]);
+      f0 = (t0+2*t1+concat_bytes(subkeys[rnd][8],subkeys[rnd][9])) % mod_val;
+      f1 = (2*t0+t1+concat_bytes(subkeys[rnd][10],subkeys[rnd][11])) % mod_val;
+   }else{ //DECRYPTION
+      t0 = G(r0, subkeys[dec_rnd][0], subkeys[dec_rnd][1], subkeys[dec_rnd][2], subkeys[dec_rnd][3]);
+      t1 = G(r1, subkeys[dec_rnd][4], subkeys[dec_rnd][5], subkeys[dec_rnd][6], subkeys[dec_rnd][7]);
+      f0 = (t0+2*t1+concat_bytes(subkeys[dec_rnd][8],subkeys[dec_rnd][9])) % mod_val;
+      f1 = (2*t0+t1+concat_bytes(subkeys[dec_rnd][10],subkeys[dec_rnd][11])) % mod_val;
    }
+
    printf("In, F, round %i: t0:%hx, t1:%hx, f0:%hx, f1:%hx\n", rnd, t0, t1, f0, f1);       
    return;
 }
@@ -305,6 +300,7 @@ int main(int argc, char* argv[]){
    }
    sscanf(block, "%" SCNx64, &key);
    fclose(kd);
+   generate_keys();
 
    while (*current){
 
@@ -346,8 +342,9 @@ int main(int argc, char* argv[]){
          R2 = w2^K2;
          R3 = w3^K3;
 
-         //printf("After whitening step: ");
-         //print_block(R0, R1, R2, R3);
+         printf("After whitening step: ");
+         print_block(R0, R1, R2, R3);
+         printf("\n");
          //yi's are temps, ci's are the resulting cipher words, tempi are temps
          uint16_t y0, y1, y2, y3, c0, c1, c2, c3, temp1, temp2;      
          //Encryption Loop
@@ -357,7 +354,7 @@ int main(int argc, char* argv[]){
             //Decryption
             if (!dec_flag){
                F(R0, R1, round);
-               temp1 = rotl(R1, 1)^f0; //->R0
+               temp1 = rotl(R2, 1)^f0; //->R0
                temp2 = R1;
                R1 = rotr(R3^f1, 1);
                R2 = R0;
@@ -373,8 +370,9 @@ int main(int argc, char* argv[]){
                R3 = temp2;
                R0 = temp1;
             }
-            //printf("After round %i: ", round);
-            //print_block(R0,R1,R2,R3);                  
+            printf("After round %i: ", round);
+            print_block(R0,R1,R2,R3);
+            printf("\n");                  
             round++;
          } //done with encryption round processing
          round = 0; //reset the round
@@ -392,7 +390,7 @@ int main(int argc, char* argv[]){
          //fprintf(stderr, "c2: %hx\n", c2);
          //fprintf(stderr, "c3: %hx\n", c3);
          //ENCRYPTION DONE
-         print_keys();          
+         //print_keys();          
          print_block(c0,c1,c2,c3);
                       
       }
