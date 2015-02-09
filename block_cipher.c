@@ -49,6 +49,7 @@ uint8_t get_idx(uint8_t);
 uint16_t G(uint16_t,uint8_t,uint8_t,uint8_t,uint8_t);
 void print_keys(); //test function to print all the generated subkeys
 void print_block(uint16_t,uint16_t,uint16_t,uint16_t);
+void pad_get_words(char*);
 
 //Subroutine to go through and add subkeys of 'key' to keychain.
 //Note: will have to change in decr is different than enc
@@ -106,27 +107,20 @@ void get_words(FILE* fd, char* bl){
    temp1[0] = bl[0]; temp1[1] = bl[1]; temp1[2] = bl[2]; temp1[3] = bl[3];
    sscanf(temp1, "%X", &temp2);
    w0 = (uint16_t) temp2;      
-   //printf("word 1 of pt: %hx\n", w0);
-   //printf("%hu\n", (uint16_t) w1);
     
    temp1[0] = bl[4]; temp1[1] = bl[5]; temp1[2] = bl[6]; temp1[3] = bl[7];
    sscanf(temp1, "%X", &temp2);
    w1 = (uint16_t) temp2;
-   //printf("word 2 of pt: %hx\n", w1);      
-   //printf("%hu\n", (uint16_t) w2);
 
    temp1[0] = bl[8]; temp1[1] = bl[9]; temp1[2] = bl[10]; temp1[3] = bl[11];
    sscanf(temp1, "%X", &temp2);
    w2 = (uint16_t) temp2;
-   //printf("word 3 of pt: %hx\n", w2);
-   //printf("%hu\n", (uint16_t) w3);
 
    temp1[0] = bl[12]; temp1[1] = bl[13]; temp1[2] = bl[14]; temp1[3] = bl[15];
    sscanf(temp1, "%X", &temp2);
    w3 = (uint16_t) temp2;
-   //printf("word 4 of pt: %hx\n", w3);
-   //printf("%hu\n", (uint16_t) w4);
 
+   return;
 }
 
 /*I got both of these functions from Wikipedia because, frankly, they
@@ -185,7 +179,6 @@ uint16_t G(uint16_t w, uint8_t k1, uint8_t k2, uint8_t k3, uint8_t k4){
    return concat_bytes(g5, g6);   
 }
 
-
 /*F function from homework prompt to return f0 and f1 during
   each round*/
 void F(uint16_t r0, uint16_t r1, int rnd){
@@ -218,7 +211,7 @@ void F(uint16_t r0, uint16_t r1, int rnd){
 }
 
 void print_block(uint16_t a, uint16_t b, uint16_t c, uint16_t d){
-   fprintf(stdout, "%hx %hx %hx %hx\n", a,b,c,d);
+   fprintf(stdout, "%hx%hx%hx%hx", a,b,c,d);
 }
 
 //test function to make sure I'm print all the keys correctly
@@ -231,6 +224,34 @@ void print_keys(){
      printf("\n");
    }
    return;
+}
+
+void pad_get_words(char* bl){
+  //have to scan the whole block in,
+  //unlike with get_words()
+  uint64_t x = 0;
+  int len = strlen(bl);
+  //printf("strlen is %d\n", len);
+  sscanf(bl, "%" SCNx64, &x);
+  //printf("hex: %lx\n", x);
+  //printf("before: %lx\n", x); 
+  if (len % 2 == 0){
+    x = (x << (64-(len*8)));
+  }else {
+    x = (x << (64-(len*8-4)));
+  }
+
+  //printf("after: %lx\n", x);
+  w0 = (x & 0x000000000000FFFF);
+  w1 = (x & 0x00000000FFFF0000) >> 16;
+  w2 = (x & 0x0000FFFF00000000) >> 32;
+  w3 = (x & 0xFFFF000000000000) >> 48;
+  //printf("w0: %hu\n", w0);
+  //printf("w1: %hu\n", w1);
+  //printf("w2: %hu\n", w2);
+  //printf("w3: %hu\n", w3);
+  
+  return;
 }
 
 int main(int argc, char* argv[]){
@@ -263,6 +284,7 @@ int main(int argc, char* argv[]){
       exit(1);
    }
    sscanf(block, "%" SCNx64, &key);
+   fclose(kd);
 
    while (*current){
 
@@ -274,15 +296,25 @@ int main(int argc, char* argv[]){
       
       //printf("Key in hex is: %lx\n", (long unsigned int) key);
       
-
       uint16_t R0, R1, R2, R3; //encrypting values that will be saved per round
+      int file_flag = 1; //determine if a block < 64 bit still needs to be read in
          
       while (1){
+	 if (!file_flag)break;
+         unsigned char temp[16] = {'\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0'}; //try reset a local array
 
-	 if((result = fread(block, 1, 16, fd)) != 16)break;
-	            
-         get_words(fd, block);
-
+	 if((result = fread(temp, 1, 16, fd)) != 16){
+	   if (feof(fd))break; //test if just eof was read in
+            char* i;
+            for(i = temp;*i!='\0';i++){
+	      if (*i=='\n')*i='\0';
+            }
+            pad_get_words(temp);
+            file_flag--; //stop reading from file, all hex chars read in 
+         }
+	 else{           
+            get_words(fd, temp);
+         }
          //Whitening Step
          tease_key();
          //printf("Key pieces are: ");
@@ -329,10 +361,11 @@ int main(int argc, char* argv[]){
                       
       }
     
-      fclose(fd);//plaintext
+      if(fd != NULL)fclose(fd);//plaintext
+      file_flag++;
       current++;
    } //end of main while loop for file reading
-   fclose(kd);//keytext
+   //fclose(kd);//keytext
    
    return 0;
 }
