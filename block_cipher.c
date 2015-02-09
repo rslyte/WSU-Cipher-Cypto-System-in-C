@@ -232,7 +232,9 @@ void pad_get_words(char* bl){
   uint64_t x = 0;
   int len = strlen(bl);
   //printf("strlen is %d\n", len);
-  sscanf(bl, "%" SCNx64, &x);
+  
+  x = strtoul(bl, NULL, 16);
+  //sscanf(bl, "%" SCNx64, &x);
   //printf("hex: %lx\n", x);
   //printf("before: %lx\n", x); 
   if (len % 2 == 0){
@@ -304,13 +306,14 @@ int main(int argc, char* argv[]){
          unsigned char temp[16] = {'\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0'}; //try reset a local array
 
 	 if((result = fread(temp, 1, 16, fd)) != 16){
-	   if (feof(fd))break; //test if just eof was read in
-            char* i;
-            for(i = temp;*i!='\0';i++){
-	      if (*i=='\n')*i='\0';
-            }
-            pad_get_words(temp);
-            file_flag--; //stop reading from file, all hex chars read in 
+	   if (feof(fd) && result > 1){ //if (feof(fd)){break;}
+              char* i;
+              for(i = temp;*i!='\0';i++){
+	         if (*i=='\n')*i='\0';
+              }
+              pad_get_words(temp);
+              file_flag--;}
+           else{break;} 
          }
 	 else{           
             get_words(fd, temp);
