@@ -83,14 +83,14 @@ uint8_t K(int x){
    }
    else {
       idx = x % 8;
+      add_keys(); //deal with SEG for decryption
       uint8_t ret = key_chain[idx];
-      subkeys[row][col++] = ret; //add to global subkeys[][]
+      subkeys[row][col++] = key_chain[idx]; //add to global subkeys[][]
       if (col == 12){
          col = 0; //wrap mat col back to 0
-         row--; //dec row down 1
+         row++; //inc rown up 1
       }
       key = keyrotr(key, 1);
-      add_keys();
       return ret;
    }
 }  
@@ -186,27 +186,45 @@ void F(uint16_t r0, uint16_t r1, int rnd){
    uint16_t t0, t1;
 
    uint8_t gk1, gk2, gk3, gk4, gk5, gk6, gk7, gk8, k9, k10, k11, k12;
-   gk1 = K(4*rnd);
-   gk2 = K(4*rnd+1);
-   gk3 = K(4*rnd+2);
-   gk4 = K(4*rnd+3);
+   if (!dec_flag){
 
-   gk5 = K(4*rnd);
-   gk6 = K(4*rnd+1);
-   gk7 = K(4*rnd+2);
-   gk8 = K(4*rnd+3);
+      gk1 = K(4*rnd+3);
+      gk2 = K(4*rnd+2);
+      gk3 = K(4*rnd+1);
+      gk4 = K(4*rnd);
+      gk5 = K(4*rnd+3);
+      gk6 = K(4*rnd+2);
+      gk7 = K(4*rnd+1);
+      gk8 = K(4*rnd);
+      k9 = K(4*rnd+3);
+      k10 = K(4*rnd+2);
+      k11 = K(4*rnd+1);
+      k12 = K(4*rnd);
+      t0 = G(r0, gk1, gk2, gk3, gk4);
+      t1 = G(r1, gk5, gk6, gk7, gk8);
+      f0 = (t0+2*t1+concat_bytes(k9,k10)) % mod_val;
+      f1 = (2*t0+t1+concat_bytes(k11,k12)) % mod_val;
 
-   k9 = K(4*rnd);
-   k10 = K(4*rnd+1);
-   k11 = K(4*rnd+2);
-   k12 = K(4*rnd+3);
-   
-   t0 = G(r0, gk1, gk2, gk3, gk4);
-   t1 = G(r1, gk5, gk6, gk7, gk8);
-   f0 = (t0+2*t1+concat_bytes(k9,k10)) % mod_val;
-   f1 = (2*t0+t1+concat_bytes(k11,k12)) % mod_val;
-   //printf("In, F, round %i: t0:%hx, t1:%hx, f0:%hx, f1:%hx\n", rnd, t0, t1, f0, f1); 
-      
+   }else{
+
+      gk1 = K(4*rnd);
+      gk2 = K(4*rnd+1);
+      gk3 = K(4*rnd+2);
+      gk4 = K(4*rnd+3);
+      gk5 = K(4*rnd);
+      gk6 = K(4*rnd+1);
+      gk7 = K(4*rnd+2);
+      gk8 = K(4*rnd+3);
+      k9 = K(4*rnd);
+      k10 = K(4*rnd+1);
+      k11 = K(4*rnd+2);
+      k12 = K(4*rnd+3);
+      t0 = G(r0, gk1, gk2, gk3, gk4);
+      t1 = G(r1, gk5, gk6, gk7, gk8);
+      f0 = (t0+2*t1+concat_bytes(k9,k10)) % mod_val;
+      f1 = (2*t0+t1+concat_bytes(k11,k12)) % mod_val;
+   }
+   printf("In, F, round %i: t0:%hx, t1:%hx, f0:%hx, f1:%hx\n", rnd, t0, t1, f0, f1);       
    return;
 }
 
@@ -336,17 +354,27 @@ int main(int argc, char* argv[]){
          int round = 0;
          while (round < 16){
 
-            F(R0, R1, round);
-            temp1 = rotr(R2^f0, 1); //->R0
-            temp2 = R1; //->R3
-            R1 = rotl(R3, 1)^f1;
-            R2 = R0;
-            R3 = temp2;
-            R0 = temp1;
-
+            //Decryption
+            if (!dec_flag){
+               F(R0, R1, round);
+               temp1 = rotl(R1, 1)^f0; //->R0
+               temp2 = R1;
+               R1 = rotr(R3^f1, 1);
+               R2 = R0;
+               R3 = temp2;
+               R0 = temp1;   
+            //Encryption
+            }else{
+               F(R0, R1, round);
+               temp1 = rotr(R2^f0, 1); //->R0
+               temp2 = R1; //->R3
+               R1 = rotl(R3, 1)^f1;
+               R2 = R0;
+               R3 = temp2;
+               R0 = temp1;
+            }
             //printf("After round %i: ", round);
-            //print_block(R0,R1,R2,R3);
-                  
+            //print_block(R0,R1,R2,R3);                  
             round++;
          } //done with encryption round processing
          round = 0; //reset the round
@@ -358,8 +386,13 @@ int main(int argc, char* argv[]){
          c1 = y1^K1;
          c2 = y2^K2;
          c3 = y3^K3;
+
+         //fprintf(stderr, "c0: %hx\n", c0);
+         //fprintf(stderr, "c1: %hx\n", c1);
+         //fprintf(stderr, "c2: %hx\n", c2);
+         //fprintf(stderr, "c3: %hx\n", c3);
          //ENCRYPTION DONE
-         //print_keys();          
+         print_keys();          
          print_block(c0,c1,c2,c3);
                       
       }
