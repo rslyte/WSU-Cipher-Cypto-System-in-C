@@ -31,8 +31,7 @@ uint8_t subkeys[16][12]; //This will hold on all 192 subkeys.
 uint8_t key_chain[8] = {0, 0, 0, 0, 0, 0, 0, 0}; //will hold 8 bytes of key
 uint16_t w0, w1, w2, w3, f0, f1, K0, K1, K2, K3; //these are global because their functions-
 uint64_t key;                    //return multiple values at a time
-int dec_flag = 1;
-//int round = 0; 
+int dec_flag = 1; //flag so that same file can be used for encryption/decryption
 
 /*Function Prototypes*/
 void add_keys();
@@ -47,7 +46,7 @@ uint16_t concat_bytes(uint8_t, uint8_t);
 void F(uint16_t, uint16_t, int);
 uint8_t get_idx(uint8_t);
 uint16_t G(uint16_t,uint8_t,uint8_t,uint8_t,uint8_t);
-void print_keys(); //test function to print all the generated subkeys
+void print_keys(); 
 void print_block(uint16_t,uint16_t,uint16_t,uint16_t);
 void pad_get_words(char*);
 void generate_keys();
@@ -66,6 +65,7 @@ void add_keys(){
    return;
 }
 
+/* Function which generates all needed subkeys beforehand */
 void generate_keys(){
 
    for(int i = 0; i < 16; i++){
@@ -82,16 +82,16 @@ void generate_keys(){
       K(4*i+2);
       K(4*i+3);
    }
-   print_keys();
    return;
 }
 
-/*Key function works for both encryption (input 1 for 3rd arg) and
-  decryption (input 0 for 3rd arg)
+/*
+  Main key generation function. Will circular rotate the key,
+  pick from 8 available subkey bytes, and add it to the subkeys
+  matrix.
 */
 uint8_t K(int x){
    int idx;
-   //if (dec_flag){
       key = keyrotl(key, 1);
       add_keys();
       idx = x % 8;
@@ -100,20 +100,7 @@ uint8_t K(int x){
          col = 0; //wrap mat col back to 0
          row++; //inc rown up 1
       }
-      return key_chain[idx];      
-   //}
-   /*else {
-      idx = x % 8;
-      add_keys(); //deal with SEG for decryption
-      uint8_t ret = key_chain[idx];
-      subkeys[row][col++] = key_chain[idx]; //add to global subkeys[][]
-      if (col == 12){
-         col = 0; //wrap mat col back to 0
-         row++; //inc rown up 1
-      }
-      key = keyrotr(key, 1);
-      return ret;
-   }*/
+      return key_chain[idx];         
 }  
 
 /*
@@ -144,8 +131,11 @@ void get_words(FILE* fd, char* bl){
    return;
 }
 
-/*I got both of these functions from Wikipedia because, frankly, they
-should be included as library functions in C (they already are in   assembly). I changed the type from 'unsigned int'*/
+/*All 4 of these functions perform right and left circular rotates of unsigned ints of size
+  16 and 64 bits. They shift the values to the right/left by 1, shift the value by the maximum size
+  of the value -1 to isolate the bit that would be lost with just a regular rotate, and than OR those
+  together to preserve the bit. CHAR_BIT is 8 on almost all linux systems, so it's mostly portable.
+ */
 uint16_t rotl(uint16_t value, int shift) {
     return (value << shift) | (value >> (sizeof(value) * CHAR_BIT - shift));
 }
@@ -153,8 +143,6 @@ uint16_t rotr(uint16_t value, int shift) {
     return (value >> shift) | (value << (sizeof(value) * CHAR_BIT - shift));
 }
 
-/*Same function but for shifting the key, couldn't figure out how to just use one
-  subroutine with some kind of flag to shift a 64 bit key or a short*/
 uint64_t keyrotl(uint64_t value, int shift) {
     return (value << shift) | (value >> (sizeof(value) * CHAR_BIT - shift));
 }
@@ -162,9 +150,9 @@ uint64_t keyrotr(uint64_t value, int shift) {
     return (value >> shift) | (value << (sizeof(value) * CHAR_BIT - shift));
 }
 
-//Gets 1st, 2nd, etc 16 bits from key. Tested and Working
+//Gets 1st, 2nd, etc 16 bits from key.
 void tease_key(){
-   //DEBUG: see which order the keys need to be read in
+
    K3 = (key & 0x000000000000FFFF);
    K2 = (key & 0x00000000FFFF0000) >> 16;
    K1 = (key & 0x0000FFFF00000000) >> 32;
@@ -175,11 +163,10 @@ void tease_key(){
 /*Subtroutine to concatenate two 8 bit unsigned ints into
   a 16 bit unsigned int*/
 uint16_t concat_bytes(uint8_t a, uint8_t b){
-   return ((uint16_t) a << 8) | b;
+   return ((uint16_t) a << 8) | b; //a is moved to high bits
 }
 
-/*Subroutine to access value of global skpjack table.
-  (This is Ftable() from homework prompt)*/
+//Subroutine to access value of global skpjack table.
 uint8_t get_idx(uint8_t val){
    uint8_t row = (val & 0xF0) >> 4;
    uint8_t col = (val & 0x0F);
@@ -187,11 +174,11 @@ uint8_t get_idx(uint8_t val){
    return ret;
 }
 
-/*G function from homework prompt, takes 16u bit and round
+/*G function: takes 16u bit and round
   and outputs a 16u bit concantenation of two bytes*/
 uint16_t G(uint16_t w, uint8_t k1, uint8_t k2, uint8_t k3, uint8_t k4){
    uint8_t g1, g2, g3, g4, g5, g6;
-   g1 = (w & 0xFF00) >> 8; //DEBUG
+   g1 = (w & 0xFF00) >> 8;
    g2 = (w & 0x00FF);
    g3 = get_idx(g2^k1)^g1;
    g4 = get_idx(g3^k2)^g2;
@@ -206,20 +193,18 @@ void F(uint16_t r0, uint16_t r1, int rnd){
    unsigned int mod_val = exp2(16);
    uint16_t t0, t1;
    int dec_rnd = 15-rnd; //so decrypt starts in row 15 and works down
-   //ENCRYPTION
+   //Encryption functionality
    if (dec_flag){
       t0 = G(r0, subkeys[rnd][0], subkeys[rnd][1], subkeys[rnd][2], subkeys[rnd][3]);
       t1 = G(r1, subkeys[rnd][4], subkeys[rnd][5], subkeys[rnd][6], subkeys[rnd][7]);
       f0 = (t0+2*t1+concat_bytes(subkeys[rnd][8],subkeys[rnd][9])) % mod_val;
       f1 = (2*t0+t1+concat_bytes(subkeys[rnd][10],subkeys[rnd][11])) % mod_val;
-   }else{ //DECRYPTION
+   }else{ //Decryption
       t0 = G(r0, subkeys[dec_rnd][0], subkeys[dec_rnd][1], subkeys[dec_rnd][2], subkeys[dec_rnd][3]);
       t1 = G(r1, subkeys[dec_rnd][4], subkeys[dec_rnd][5], subkeys[dec_rnd][6], subkeys[dec_rnd][7]);
       f0 = (t0+2*t1+concat_bytes(subkeys[dec_rnd][8],subkeys[dec_rnd][9])) % mod_val;
       f1 = (2*t0+t1+concat_bytes(subkeys[dec_rnd][10],subkeys[dec_rnd][11])) % mod_val;
-   }
-
-   printf("In, F, round %i: t0:%hx, t1:%hx, f0:%hx, f1:%hx\n", rnd, t0, t1, f0, f1);       
+   }          
    return;
 }
 
@@ -227,7 +212,7 @@ void print_block(uint16_t a, uint16_t b, uint16_t c, uint16_t d){
    fprintf(stdout, "%hx%hx%hx%hx", a,b,c,d);
 }
 
-//test function to make sure I'm print all the keys correctly
+//test function to see what all the subkeys are
 void print_keys(){
    for (int i = 0; i < 16; i++){
      printf("row %d: ", i);
@@ -239,32 +224,27 @@ void print_keys(){
    return;
 }
 
+/*Function that acts the same as get_words()
+  but is only for blocks < 64 bits, so it pads
+  them for further processing*/
 void pad_get_words(char* bl){
-  //have to scan the whole block in,
-  //unlike with get_words()
+
   uint64_t x = 0;
   int len = strlen(bl);
-  //printf("strlen is %d\n", len);
-  
+  //strtoul is safer for this kind of conversion
+  //than sscanf() 
   x = strtoul(bl, NULL, 16);
-  //sscanf(bl, "%" SCNx64, &x);
-  //printf("hex: %lx\n", x);
-  //printf("before: %lx\n", x); 
+ 
   if (len % 2 == 0){
     x = (x << (64-(len*8)));
   }else {
     x = (x << (64-(len*8-4)));
   }
 
-  //printf("after: %lx\n", x);
   w0 = (x & 0x000000000000FFFF);
   w1 = (x & 0x00000000FFFF0000) >> 16;
   w2 = (x & 0x0000FFFF00000000) >> 32;
   w3 = (x & 0xFFFF000000000000) >> 48;
-  //printf("w0: %hu\n", w0);
-  //printf("w1: %hu\n", w1);
-  //printf("w2: %hu\n", w2);
-  //printf("w3: %hu\n", w3);
   
   return;
 }
@@ -274,7 +254,7 @@ int main(int argc, char* argv[]){
    FILE *fd = NULL, *kd = NULL; 
    size_t result;
    char block[16];
-   char** current = argv; //points to files to open
+   char** current = argv; //used to traverse arguments
 
    if (argc < 3){
       fprintf(stderr,"Not enough args given. Usage: ./block_cipher 1/0 [file1.txt] [fileN.txt]...\nMust have at least one file specified, 1 for encrypt, 0 for decrypt.\n");
@@ -309,9 +289,7 @@ int main(int argc, char* argv[]){
 	 fprintf(stderr,"A file-open failed. Program Exit\n");
          exit(1); 
       }
-      
-      //printf("Key in hex is: %lx\n", (long unsigned int) key);
-      
+            
       uint16_t R0, R1, R2, R3; //encrypting values that will be saved per round
       int file_flag = 1; //determine if a block < 64 bit still needs to be read in
          
@@ -320,9 +298,9 @@ int main(int argc, char* argv[]){
          unsigned char temp[16] = {'\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0'}; //try reset a local array
 
 	 if((result = fread(temp, 1, 16, fd)) != 16){
-	   if (feof(fd) && result > 1){ //if (feof(fd)){break;}
+	   if (feof(fd) && result > 1){ //determine if a partial block to pad
               char* i;
-              for(i = temp;*i!='\0';i++){
+              for(i = temp;*i!='\0';i++){ //get rid of added \n from sscanf()
 	         if (*i=='\n')*i='\0';
               }
               pad_get_words(temp);
@@ -334,17 +312,12 @@ int main(int argc, char* argv[]){
          }
          //Whitening Step
          tease_key();
-         //printf("Key pieces are: ");
-         //print_block(K0, K1, K2, K3); 
-      
+       
          R0 = w0^K0; //XOR wi with Ki
          R1 = w1^K1;
          R2 = w2^K2;
          R3 = w3^K3;
 
-         printf("After whitening step: ");
-         print_block(R0, R1, R2, R3);
-         printf("\n");
          //yi's are temps, ci's are the resulting cipher words, tempi are temps
          uint16_t y0, y1, y2, y3, c0, c1, c2, c3, temp1, temp2;      
          //Encryption Loop
@@ -370,32 +343,23 @@ int main(int argc, char* argv[]){
                R3 = temp2;
                R0 = temp1;
             }
-            printf("After round %i: ", round);
-            print_block(R0,R1,R2,R3);
-            printf("\n");                  
+                  
             round++;
          } //done with encryption round processing
-         round = 0; //reset the round
-      
-         //printf("Key after 16 rounds is: %lx\n", key);
+         //round = 0; //reset the round
+               
          tease_key(); //get individual 16 bit parts of newest key
          y0 = R2; y1 = R3; y2 = R0; y3 = R1;
          c0 = y0^K0;
          c1 = y1^K1;
          c2 = y2^K2;
          c3 = y3^K3;
-
-         //fprintf(stderr, "c0: %hx\n", c0);
-         //fprintf(stderr, "c1: %hx\n", c1);
-         //fprintf(stderr, "c2: %hx\n", c2);
-         //fprintf(stderr, "c3: %hx\n", c3);
-         //ENCRYPTION DONE
-         //print_keys();          
+          
          print_block(c0,c1,c2,c3);
                       
       }
     
-      if(fd != NULL)fclose(fd);//plaintext
+      if(fd != NULL)fclose(fd);
       file_flag++;
       current++;
    } //end of main while loop for file reading
