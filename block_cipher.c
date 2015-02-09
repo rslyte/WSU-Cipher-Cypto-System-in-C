@@ -240,18 +240,16 @@ int main(int argc, char* argv[]){
    char block[16];
    char** current = argv; //points to files to open
 
-   if (argc == 1){
-      fprintf(stderr,"No args given. Usage: ./block_cipher 1/0 [file1.txt] [fileN.txt]...\nMust have at least one file specified, 1 for encrypt, 0 for decrypt.\n");
+   if (argc < 3){
+      fprintf(stderr,"Not enough args given. Usage: ./block_cipher 1/0 [file1.txt] [fileN.txt]...\nMust have at least one file specified, 1 for encrypt, 0 for decrypt.\n");
      exit(1);
    }
 
-
-   int test;
-   sscanf(argv[1], "%d", &test); 
-   if ((test != 1) && (test != 0)){
+   if ((argv[1][0] != 48) && (argv[1][0] != 49)){
       fprintf(stderr, "First arugment must be a 1 or 0, 1 for encryptin and 0 for decryption\n");
+      exit(1);
    }
-   if (test == 0)dec_flag--; //dec flag set to DECRYPTION
+   if (argv[1][0] == 48)dec_flag--; //Set to DECRYPTION MODE   
 
    current+=2; //move onto the text files
 
