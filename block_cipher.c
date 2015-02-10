@@ -235,11 +235,7 @@ void pad_get_words(char* bl){
   //than sscanf() 
   x = strtoul(bl, NULL, 16);
  
-  if (len % 2 == 0){
-    x = (x << (64-(len*8)));
-  }else {
-    x = (x << (64-(len*8-4)));
-  }
+  x = x << (64 - (len*4)); 
 
   w0 = (x & 0x000000000000FFFF);
   w1 = (x & 0x00000000FFFF0000) >> 16;
