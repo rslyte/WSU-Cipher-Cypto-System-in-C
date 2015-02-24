@@ -46,10 +46,43 @@ uint16_t concat_bytes(uint8_t, uint8_t);
 void F(uint16_t, uint16_t, int);
 uint8_t get_idx(uint8_t);
 uint16_t G(uint16_t,uint8_t,uint8_t,uint8_t,uint8_t);
-void print_keys(); 
+void print_keys();
 void print_block(uint16_t,uint16_t,uint16_t,uint16_t);
-void pad_get_words(char*);
+void pad_get_words(uint8_t*);
 void generate_keys();
+void get_chars(uint8_t*);
+void print_chars(uint16_t,uint16_t,uint16_t,uint16_t);
+
+//Used by decryption to grab the bytes
+//from the decrypted block and print
+//them to standard out as characters
+void print_chars(uint16_t a,uint16_t b,uint16_t c,uint16_t d){
+
+   uint8_t b0, b1, b2, b3, b4, b5, b6, b7; 
+   b0 = (a & 0xFF00) >> 8;
+   b1 = (a & 0x00FF);
+   b2 = (b & 0xFF00) >> 8;
+   b3 = (b & 0x00FF);
+   b4 = (c & 0xFF00) >> 8;
+   b5 = (c & 0x00FF);
+   b6 = (d & 0xFF00) >> 8;
+   b7 = (d & 0x00FF);
+   fprintf(stdout, "%c%c%c%c%c%c%c%c", (char)b0,(char)b1,(char)b2,(char)b3,(char)b4,(char)b5,(char)b6,(char)b7);   
+
+}
+
+//Subroutine for encryption, because it needs
+//to get bytes, and not just bytes that represent
+//hex like with decryption
+void get_chars(uint8_t* bl){
+
+   w0 = concat_bytes(bl[0], bl[1]);
+   w1 = concat_bytes(bl[2], bl[3]);
+   w2 = concat_bytes(bl[4], bl[5]);
+   w3 = concat_bytes(bl[6], bl[7]);
+
+   return;
+}
 
 //Subroutine to go through and add subkeys of 'key' to keychain.
 //Note: will have to change in decr is different than enc
@@ -208,6 +241,7 @@ void F(uint16_t r0, uint16_t r1, int rnd){
    return;
 }
 
+//Print function for encryption, becasue enc output needs to be hex
 void print_block(uint16_t a, uint16_t b, uint16_t c, uint16_t d){
    fprintf(stdout, "%hx%hx%hx%hx", a,b,c,d);
 }
@@ -227,15 +261,13 @@ void print_keys(){
 /*Function that acts the same as get_words()
   but is only for blocks < 64 bits, so it pads
   them for further processing*/
-void pad_get_words(char* bl){
-
-  uint64_t x = 0;
-  int len = strlen(bl);
-  //strtoul is safer for this kind of conversion
-  //than sscanf() 
-  x = strtoul(bl, NULL, 16);
- 
-  x = x << (64 - (len*4)); 
+void pad_get_words(uint8_t* bl){
+   
+  uint64_t x = 0x0000000000000000 | bl[0];
+  for (int i = 1; i < strlen(bl)-1; i++){
+     x = (x << 8) | ((uint64_t) bl[i]);
+  }  
+  x = x << (64 - ((strlen(bl)-1)*8));
 
   w0 = (x & 0x000000000000FFFF);
   w1 = (x & 0x00000000FFFF0000) >> 16;
@@ -245,6 +277,9 @@ void pad_get_words(char* bl){
   return;
 }
 
+/*
+  MAIN: main program logic to read through files and encrypt/decrypt
+*/
 int main(int argc, char* argv[]){
   
    FILE *fd = NULL, *kd = NULL; 
@@ -252,6 +287,7 @@ int main(int argc, char* argv[]){
    char block[16];
    char** current = argv; //used to traverse arguments
 
+//********************Error Checking Code********************//
    if (argc < 3){
       fprintf(stderr,"Not enough args given. Usage: ./block_cipher 1/0 [file1.txt] [fileN.txt]...\nMust have at least one file specified, 1 for encrypt, 0 for decrypt.\n");
      exit(1);
@@ -274,6 +310,8 @@ int main(int argc, char* argv[]){
       fprintf(stderr,"Key file must be 64 bit hext number represented by 16 character bytes.Program exit\n");
       exit(1);
    }
+
+   //********End Error Checking*********//
    sscanf(block, "%" SCNx64, &key);
    fclose(kd);
    generate_keys();
@@ -288,26 +326,36 @@ int main(int argc, char* argv[]){
             
       uint16_t R0, R1, R2, R3; //encrypting values that will be saved per round
       int file_flag = 1; //determine if a block < 64 bit still needs to be read in
-         
+               
       while (1){
-	 if (!file_flag)break;
-         unsigned char temp[16] = {'\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0'}; //try reset a local array
-
-	 if((result = fread(temp, 1, 16, fd)) != 16){
-	   if (feof(fd) && result > 1){ //determine if a partial block to pad
-              char* i;
-              for(i = temp;*i!='\0';i++){ //get rid of added \n from sscanf()
-	         if (*i=='\n')*i='\0';
-              }
-              pad_get_words(temp);
-              file_flag--;}
-           else{break;} 
-         }
-	 else{           
-            get_words(fd, temp);
-         }
+         if (!file_flag)break;
+             
+            //DECRYPTION: Characters need to be read as if they represent 64-bit hex
+            //We assume now that there are no partial blocks because encryption would have padded them
+            if (!dec_flag){
+               unsigned char temp[16] = {'\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0'};
+	       if((result = fread(temp, 1, 16, fd)) != 16){
+	          break; 
+               }
+	       else{           
+                  get_words(fd, temp);
+               }
+	    }else{
+	    //ENCRYPTION: Characters need to be read as if they reprsent just 8 bit characters
+	       uint8_t vals[8] = {0, 0, 0, 0, 0, 0, 0, 0}; //get unsigned ascii values of each byte
+	       if((result = fread(vals, 1, 8, fd)) != 8){
+		 //if (feof(fd) && result > 1){ //determine if a partial block to pad		     
+		 //    pad_get_words(vals);
+		 //    file_flag--;}
+		 break;//else{break;} 
+	       }
+	       else{		            
+	          get_chars(vals);
+	       }           
+            }//End reading in a single 64-bit block from a file
+         
          //Whitening Step
-         tease_key();
+	 tease_key(); 
        
          R0 = w0^K0; //XOR wi with Ki
          R1 = w1^K1;
@@ -342,7 +390,6 @@ int main(int argc, char* argv[]){
                   
             round++;
          } //done with encryption round processing
-         //round = 0; //reset the round
                
          tease_key(); //get individual 16 bit parts of newest key
          y0 = R2; y1 = R3; y2 = R0; y3 = R1;
@@ -350,16 +397,20 @@ int main(int argc, char* argv[]){
          c1 = y1^K1;
          c2 = y2^K2;
          c3 = y3^K3;
-          
-         print_block(c0,c1,c2,c3);
-                      
+         
+         if (!dec_flag){
+	    print_chars(c0,c1,c2,c3);
+         }else{	   
+            print_block(c0,c1,c2,c3);
+         }                      
       }
-    
+         //END DECRYPTION
+      
       if(fd != NULL)fclose(fd);
       file_flag++;
       current++;
-   } //end of main while loop for file reading
-   //fclose(kd);//keytext
+   }//end of main while loop for file reading
+   
    
    return 0;
 }
